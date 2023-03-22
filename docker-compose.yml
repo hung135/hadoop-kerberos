@@ -1,0 +1,79 @@
+version: '3.7'
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=hadoop
+    volumes:
+      - namenode:/hadoop/dfs/name
+      - ./core-site.xml:/opt/hadoop-3.2.1/etc/hadoop/core-site.xml
+      - ./hdfs-site.xml:/opt/hadoop-3.2.1/etc/hadoop/hdfs-site.xml
+
+    networks:
+      - hadoop
+    healthcheck:
+      test: ["CMD", "hdfs", "dfsadmin", "-report"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    volumes:
+      - datanode:/hadoop/dfs/data
+    networks:
+      - hadoop
+    depends_on:
+      namenode:
+        condition: service_healthy
+
+
+  kerberos:
+    image: kerberos/kerberos
+    container_name: kerberos
+    environment:
+      - KRB5_REALM=EXAMPLE.COM
+      - KRB5_KDC_PROFILE=KRB5KDC:/etc/krb5kdc/kdc.conf
+      - KRB5_ADMIN_PROFILE=KRB5KDC:/etc/krb5kdc/kadm5.acl
+      - KRB5_CONFIG=KRB5_CONF:/etc/krb5.conf
+      - KRB5_USER=admin
+      - KRB5_PASSWORD=abc123456
+    networks:
+      - hadoop
+
+  ldap:
+    image: osixia/openldap
+    container_name: ldap
+    environment:
+      - LDAP_ORGANISATION=example
+      - LDAP_DOMAIN=example.com
+      - LDAP_ADMIN_PASSWORD=abc123456
+    networks:
+      - hadoop
+
+  client:
+    image: ubuntu
+    container_name: client
+    command: tail -f /dev/null
+    volumes:
+      - ./python_script:/app
+    networks:
+      - hadoop
+    depends_on:
+      - namenode
+      - datanode
+      - kerberos
+      - ldap
+
+volumes:
+  namenode:
+  datanode:
+
+networks:
+  hadoop:
+
